@@ -180,6 +180,11 @@ class TracerouteResult:
             json.dump(prev_data, f, sort_keys=True, indent=4)
 
 def parse_args():
+    """Sets and parses the command line arguments
+
+    Returns:
+        Namespace object
+    """
     parser = argparse.ArgumentParser(description="Wrapper for traceroute")
 
     parser.add_argument("--first-hop", type=int,
