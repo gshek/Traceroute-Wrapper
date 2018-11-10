@@ -84,9 +84,13 @@ class TracerouteResult:
 
     def run_traceroute_program(self):
         """Runs the traceroute program and stores the result
+
+        Raises:
+            ValueError: When there are incorrect arguments
         """
         print("'{}'".format(" ".join(self._cmd)))
-        proc = subprocess.Popen(self._cmd, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(self._cmd, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT)
 
         def read_traceroute_line():
             return proc.stdout.readline().decode().strip()
@@ -99,6 +103,9 @@ class TracerouteResult:
 
         while True:
             line = read_traceroute_line()
+
+            if "invalid argument" in line.lower():
+                raise ValueError("Invalid Argument")
 
             if not line:
                 break
@@ -117,7 +124,7 @@ class TracerouteResult:
         words = [word.strip() for word in line.split(" ") if word.strip()]
         expected_tries = self._number_of_tries
 
-        result = {"number": int(words[0])}
+        result = {"index": int(words[0])}
 
         ip_index = 1
         while ip_index < len(words) and words[ip_index] == "*":
@@ -128,14 +135,14 @@ class TracerouteResult:
             result["ip_address"] = words[ip_index]
 
         if ip_index + expected_tries < len(words) - 1:
-            result["hostname"] = words[ip_index+1].strip("()")
+            hostname = words[ip_index+1].strip("()")
+            if hostname != result["ip_address"]:
+                result["hostname"] = hostname
 
-        tries = []
+        result["results"] = []
         for i in range(len(words)-expected_tries, len(words)):
-            if words[i] != "*":
-                tries.append(float(words[i].replace("ms", "")))
-
-        result["results"] = tries
+            if i > 0 and words[i] != "*":
+                result["results"].append(float(words[i].replace("ms", "")))
 
         print("DEBUG", result)
         self._result.append(result)
@@ -146,19 +153,16 @@ class TracerouteResult:
         Returns:
             dictionary
         """
+        result = {"cmd": " ".join(self._cmd)}
         if not self._result:
-            return {
-                        "cmd": " ".join(self._cmd),
-                        "data": "No data"
-                    }
-
-        return {
-                    "cmd": " ".join(self._cmd),
-                    "description": self._description,
-                    "timestamp": self._result_timestamp,
-                    "time_taken_in_secs": self._seconds_taken,
-                    "data":self._result
-                }
+            result["data"] = "No data"
+            result["timestamp"] = str(datetime.datetime.now())
+        else:
+            result["description"] = self._description,
+            result["timestamp"] = self._result_timestamp,
+            result["time_taken_in_secs"] = self._seconds_taken,
+            result["data"] = self._result
+        return result
 
     def save_to_file(self):
         """Saves the result in a file
