@@ -4,14 +4,85 @@ import argparse
 import json
 import statistics
 
+import prettytable
+
 def graph_table(data, hostname=None):
     """Generates a display with table
 
     Args:
-        TODO
+        hostname (str): hostname to output data on, if None, summary of all
+                data is printed
     """
-    # TODO
-    pass
+
+    if hostname is None:
+        hosts = list(data.keys())
+        hosts.sort()
+
+        table = prettytable.PrettyTable(["Hostname Targets", "Rcvd",
+                "Average (ms)", "Best (ms)", "Worst (ms)", "StDev (ms)"])
+        table.align["Hostname Targets"] = "l"
+        for host in hosts:
+            hops = []
+            for entry in data[host]:
+                if type(entry["data"]) is list:
+                    for hop in entry["data"]:
+                        hops += hop["results"]
+            
+            if hops:
+                average = str(round(sum(hops) / len(hops), 2))
+                best = str(round(min(hops), 2))
+                worst = str(round(max(hops), 2))
+                stdev = str(round(statistics.stdev(hops), 2))
+            else:
+                average = "-"
+                best = "-"
+                worst = "-"
+                stdev = "-"
+
+            table.add_row([host, len(hops), average, best, worst, stdev])
+
+    else:
+        table = prettytable.PrettyTable(["", "Hostname", "Rcvd",
+                "Average (ms)", "Best (ms)", "Worst (ms)", "StDev (ms)"],
+                hrules=prettytable.ALL)
+        table.align[""] = "l"
+        table.align["Hostname"] = "l"
+
+        max_hops = 0
+        for entry in data[hostname]:
+            if type(entry["data"]) is list:
+                max_hops = max(max_hops, len(entry["data"]))
+
+        hops_hosts = [set() for i in range(max_hops)]
+        hops = [[] for i in range(max_hops)]
+        for entry in data[hostname]:
+            if type(entry["data"]) is list:
+                for i, hop in enumerate(entry["data"]):
+                    name = ""
+                    if "ip_address" in hop:
+                        name = hop["ip_address"]
+                    if "hostname" in hop:
+                        name += " (" + hop["hostname"] + ")"
+                    
+                    if name != "":
+                        hops_hosts[i].add(name)
+                    hops[i] += hop["results"]
+
+        if max_hops == 0:
+            print("No data")
+            return
+
+        for i in range(len(hops)):
+            if len(hops_hosts[i]) == 0:
+                hops_hosts[i].add("?")
+            if hops[i]:
+                table.add_row([i+1, "\n".join(hops_hosts[i]), len(hops[i]),
+                        round(sum(hops[i]) / len(hops[i]), 2),
+                        round(min(hops[i]), 2), round(max(hops[i]), 2),
+                        round(statistics.stdev(hops[i]), 2)])
+            else:
+                table.add_row([i+1, "\n".join(hops_hosts[i])] + ["-"] * 5)
+    print(table)
 
 def graph_bar_chart(data, hostname=None):
     """TODO
@@ -38,36 +109,52 @@ def show_stats(data, hostname=None):
         hostname (str): hostname to output data on, if None, summary of all
                 data is printed
     """
+    def get_host_entry_info(host):
+        num_hops = 0
+        hops = []
+        for entry in data[host]:
+            if type(entry["data"]) is list:
+                num_hops += len(entry["data"])
+                for reading in entry["data"]:
+                    hops += reading["results"]
+        return (num_hops, hops)
+
     if hostname is None:
         num_hops = 0
         hops = []
         entries = 0
         for host in data:
             entries += len(data[host])
-            for entry in data[host]:
-                num_hops += len(entry["data"])
-                if type(entry["data"]) is list:
-                    for reading in entry["data"]:
-                        hops += reading["results"]
+            entry_info = get_host_entry_info(host)
+            num_hops += entry_info[0]
+            hops += entry_info[1]
 
         print("Number of hostnames:", len(data), end=", ")
         print("Total number of entries:", entries)
+    else:
+        num_hops, hops = get_host_entry_info(hostname)
+        entries = len(data[hostname])
+        print("Number of entries:", entries)
 
-        print("Total number of hops:", num_hops, end=", ")
-        print("Average number of hops per entry:", num_hops / entries)
+    print("Total number of hops:", num_hops, end=", ")
+    print("Average number of hops per entry:", round(num_hops / entries, 2))
 
-        to_print = [
-                    ("Average time per hop", sum(hops) / len(hops)),
-                    ("Best time", min(hops)),
-                    ("Worst time", max(hops)),
-                    ("Standard deviation", statistics.stdev(hops))
-                ]
+    if not hops:
+        print("No hops data")
+        return
 
-        max_length = max(map(lambda x: len(x[0]), to_print))
-        if hops:
-            for line in to_print:
-                print("{} {}ms".format((line[0] + ":").ljust(max_length),
-                        line[1]))
+    to_print = [
+                ("Average time per hop", round(sum(hops) / len(hops), 2)),
+                ("Best time", round(min(hops), 2)),
+                ("Worst time", round(max(hops), 2)),
+                ("Standard deviation", round(statistics.stdev(hops), 2))
+            ]
+
+    max_length = max(map(lambda x: len(x[0]), to_print)) + 1
+
+    for line in to_print:
+        print("{} {}ms".format((line[0] + ":").ljust(max_length),
+                line[1]))
 
 def parse_args():
     """Sets and parses command line arguments
@@ -107,6 +194,7 @@ def main(args):
             for entry in data[host]:
                 if type(entry["data"]) is not list:
                     empty_entries += 1
+        print(" Information ".center(60, "="))
         print("Hostnames:", hostname_count)
         print(f"Total entries: {entries} (empty entries: {empty_entries})")
 
@@ -114,6 +202,7 @@ def main(args):
         hostnames = list(data.keys())
         hostnames.sort()
         max_length = max(map(len, hostnames))
+        print(" Hostnames ".center(60, "="))
         for host in hostnames:
             empty_entries = 0
             for entry in data[host]:
@@ -124,9 +213,14 @@ def main(args):
 
     else:
         if not args.hostnames:
+            print(" Information Based On All Data ".center(60, "="))
             function_mappings[args.action](data)
         for hostname in args.hostnames:
-            function_mappings[args.action](data, hostname)
+            if hostname in data:
+                print(f" {hostname} ".center(60, "="))
+                function_mappings[args.action](data, hostname)
+            else:
+                print("Error:", hostname, "not in data")
 
 if __name__ == "__main__":
     main(parse_args())
