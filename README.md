@@ -1,4 +1,4 @@
-# Quarkslab IRMA Detection Coverage & Performance Internship 2018 -2019 Assignment
+# TracerouteWrapper
 
 ## Traceroute Version
 ```
@@ -11,7 +11,61 @@ There is NO WARRANTY, to the extent permitted by law.
 Written by Elian Gidoni.
 ```
 
+## Usage
+
+### traceroute.py
+```
+usage: traceroute.py [-h] [--first-hop FIRST_HOP] [--gateways GATEWAYS]
+                     [--icmp] [--max-hop MAX_HOP]
+                     [--connection-type {icmp,udp}] [--port PORT]
+                     [--tries TRIES] [--resolve-hostnames]
+                     [--type-of-service TYPE_OF_SERVICE] [--wait WAIT]
+                     host output_file
+
+Wrapper for traceroute
+
+positional arguments:
+  host                  Host to trace route to
+  output_file           File to store resuilts in
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --first-hop FIRST_HOP
+                        Set initial hop distance, that is the time-to-live
+  --gateways GATEWAYS   List of gateways for loose source routing
+  --icmp                Use ICMP ECHO as probe
+  --max-hop MAX_HOP     Set maximal hop count
+  --connection-type {icmp,udp}
+                        Method to use for traceroute operations
+  --port PORT           Port to use
+  --tries TRIES         Number of probe packets per hop
+  --resolve-hostnames   Resolve hostnames
+  --type-of-service TYPE_OF_SERVICE
+                        Set type of service (TOS)
+  --wait WAIT           Number of seconds to wait for response
+```
+
+### view-results.py
+```
+usage: view-results.py [-h]
+                       data_file {info,hostnames,stats,chart,table,map}
+                       [hostnames [hostnames ...]]
+
+Visualises traceroute data
+
+positional arguments:
+  data_file             File with traceroute data
+  {info,hostnames,stats,chart,table,map}
+                        Action to carry out on data
+  hostnames             Hostnames to visualise
+
+optional arguments:
+  -h, --help            show this help message and exit
+```
+
 ## Assignment
+
+*Quarkslab IRMA Detection Coverage & Performance Internship 2018 - 2019 Assignment*
 
 You may know the traceroute command on unix. Given a host, it shows the intermediate hosts with their latency. Eg.
 
