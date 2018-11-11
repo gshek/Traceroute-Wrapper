@@ -124,25 +124,62 @@ class TracerouteResult:
         words = [word.strip() for word in line.split(" ") if word.strip()]
         expected_tries = self._number_of_tries
 
-        result = {"index": int(words[0])}
+        # Though about using regexes, but though this would be more readable
 
-        ip_index = 1
-        while ip_index < len(words) and words[ip_index] == "*":
-            expected_tries -= 1
-            ip_index += 1
+        def is_ipv4(word):
+            allowed = {str(i) for i in range(10)}
+            allowed.add(".")
+            for c in word:
+                if c not in allowed:
+                    return False
+            if word.count(".") != 3:
+                return False
+            for num in word.split("."):
+                if int(num) >= 256:
+                    return False
+            return True
 
-        if ip_index != len(words):
-            result["ip_address"] = words[ip_index]
+        def is_hostname(word):
+            return word[0] == "(" and word[-1] == ")"
 
-        if ip_index + expected_tries < len(words) - 1:
-            hostname = words[ip_index+1].strip("()")
-            if hostname != result["ip_address"]:
-                result["hostname"] = hostname
+        def is_time(word):
+            if word[-2:] != "ms":
+                return False
+            try:
+                float(word[:-2])
+            except ValueError:
+                return False
+            return True
 
-        result["results"] = []
-        for i in range(len(words)-expected_tries, len(words)):
-            if i > 0 and words[i] != "*":
-                result["results"].append(float(words[i].replace("ms", "")))
+        result = {
+                    "index": int(words[0]),
+                    "results": []
+                }
+
+        for word in words[1:]:
+            if word == "*":
+                expected_tries -= 1
+            elif is_ipv4(word):
+                if "ip_address" not in result:
+                    result["ip_address"] = []
+                if word not in result["ip_address"]:
+                    result["ip_address"].append(word)
+            elif is_hostname(word):
+                result["hostname"] = word.strip("()")
+            elif is_time(word):
+                result["results"].append(float(word.replace("ms", "")))
+                expected_tries -= 1
+
+        if "ip_address" in result:
+            if len(result["ip_address"]) > 1:
+                # Unknown behaviour, so removing hostname information
+                if "hostname" in result:
+                    result.pop("hostname")
+            elif result["hostname"] in result["ip_address"]:
+                result.pop("hostname")
+
+        if expected_tries != 0:
+            raise "Unexpected behaviour - invalid input"
 
         self._result.append(result)
 

@@ -53,17 +53,21 @@ def graph_table(data, hostname=None):
                 max_hops = max(max_hops, len(entry["data"]))
 
         hops_hosts = [set() for i in range(max_hops)]
+        hops_ips = [set() for i in range(max_hops)]
         hops = [[] for i in range(max_hops)]
         for entry in data[hostname]:
             if type(entry["data"]) is list:
                 for i, hop in enumerate(entry["data"]):
                     if "ip_address" in hop:
-                        name = hop["ip_address"]
-                        if "hostname" in hop:
-                            name += " (" + hop["hostname"] + ")"
-                            if hop["ip_address"] in hops_hosts[i]:
-                                hops_hosts[i].remove(hop["ip_address"])
-                        hops_hosts[i].add(name)
+                        for ip in hop["ip_address"]:
+                            name = ip
+                            if "hostname" in hop:
+                                name += " (" + hop["hostname"] + ")"
+                                if ip in hops_hosts[i]:
+                                    hops_hosts[i].remove(ip)
+                            if ip not in hops_ips[i]:
+                                hops_hosts[i].add(name)
+                            hops_ips[i].add(ip)
                     hops[i] += hop["results"]
 
         if max_hops == 0:
@@ -72,7 +76,7 @@ def graph_table(data, hostname=None):
 
         for i in range(len(hops)):
             if len(hops_hosts[i]) == 0:
-                hops_hosts[i].add("?")
+                hops_hosts[i].add("???")
             if hops[i]:
                 table.add_row([i+1, "\n".join(hops_hosts[i]), len(hops[i]),
                         round(sum(hops[i]) / len(hops[i]), 2),
@@ -121,7 +125,7 @@ def graph_bar_chart(data, hostname=None):
 
         # Colourmap
         cmap = plt.get_cmap("inferno")
-        cmap.set_bad(color="white")
+        cmap.set_bad(color="lightblue")
 
         # Heatmap
         data = np.array(hop_averages)
@@ -154,15 +158,17 @@ def graph_bar_chart(data, hostname=None):
                        hops_hosts.append(set())
 
                     if "ip_address" in entry["data"][i]:
-                        name = entry["data"][i]["ip_address"]
-                        hops_hosts[i].add(name)
+                        for name in entry["data"][i]["ip_address"]:
+                            hops_hosts[i].add(name)
                     hops[i] += entry["data"][i]["results"]
         if not hops:
             print("No data")
             return
         hops_averages = [round(sum(hs) / len(hs), 2)\
                 if hs else 0 for hs in hops]
-        hosts = [", ".join(host) if host else "?" for host in hops_hosts]
+        hosts = [", ".join(host) if host else "???" for host in hops_hosts]
+        msg = "Multiple Entries"
+        hosts = [msg if len(h) > len(msg) and "," in h else h for h in hosts]
 
         fig, ax = plt.subplots()
 
@@ -192,24 +198,84 @@ def graph_map(data, hostname=None):
     else:
         hostnames = [hostname]
 
-    graph = graphviz.Digraph(comment="Traceroute Information", filename="output.gv")
+    graph = graphviz.Digraph(comment="Traceroute Information",
+            filename="map-drawing.gv")
     graph.node_attr.update(color="lightblue2", style="filled")
 
-    edges = set()
+    edges = {}
+    ip_to_hosts = {}
     temp_count = 1
     for host in hostnames:
         for entry in data[host]:
             if type(entry["data"]) is list:
                 if "ip_address" not in entry["data"][0]:
-                    entry["data"][0]["ip_address"] = f"Unknown {temp_count}"
+                    entry["data"][0]["ip_address"] = {f"??? ({temp_count})"}
                     temp_count += 1
-                for i in range(1, len(entry["data"])):
-                    if "ip_address" not in entry["data"][i]:
-                        entry["data"][i]["ip_address"] = f"Unknown {temp_count}"
-                        temp_count += 1
-                    graph.edge(entry["data"][i-1]["ip_address"], entry["data"][i]["ip_address"])
 
-    graph.view()
+                for i in range(1, len(entry["data"])):
+                    if "hostname" in entry["data"][i-1]:
+                        if len(entry["data"][i-1]["ip_address"]) == 1:
+                            ip = next(iter(entry["data"][i-1]["ip_address"]))
+                            ip_to_hosts[ip] = entry["data"][i-1]["hostname"]
+
+                    for previous in entry["data"][i-1]["ip_address"]:
+                        if previous not in edges:
+                            edges[previous] = (set(), None)
+
+                        if "ip_address" not in entry["data"][i]:
+                            if edges[previous][1] is None:
+                                new_node = f"??? ({temp_count})"
+                                edges[previous] = (edges[previous][0], new_node)
+                                temp_count += 1
+                            else:
+                                new_node = edges[previous][1]
+                            entry["data"][i]["ip_address"] = {new_node}
+
+                        currents = entry["data"][i]["ip_address"]
+
+                        if i == len(entry["data"]) - 1:
+                            if len(currents) == 1:
+                                if "hostname" in entry["data"][i]:
+                                    ip = next(iter(currents))
+                                    host_name = entry["data"][i]["hostname"]
+                                    ip_to_hosts[ip] = host_name
+
+                            temp_currents = set()
+                            for current in currents:
+                                if f"<{host}>" not in current:
+                                    temp_currents.add(current + f"\n<{host}>")
+                            currents = temp_currents
+
+                        for current in currents:
+                            if current not in edges[previous][0]:
+                                edges[previous][0].add(current)
+                                graph.edge(previous, current)
+
+
+    def is_ipv4(word):
+        allowed = {str(i) for i in range(10)}
+        allowed.add(".")
+        for c in word:
+            if c not in allowed:
+                return False
+        if word.count(".") != 3:
+            return False
+        for num in word.split("."):
+            if int(num) >= 256:
+                return False
+        return True
+
+    for i, node in enumerate(graph.body):
+        found_ips = set()
+        for word in node.split("\""):
+            if is_ipv4(word):
+                if word in ip_to_hosts:
+                    found_ips.add(word)
+        for ip in found_ips:
+            graph.body[i] = graph.body[i].replace(f"\"{ip}\"",
+                    f"\"{ip}\n{ip_to_hosts[ip]}\"")
+
+    graph.view(cleanup=True)
 
 
 def show_stats(data, hostname=None):
