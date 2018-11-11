@@ -170,11 +170,10 @@ class TracerouteResult:
                 result["results"].append(float(word.replace("ms", "")))
                 expected_tries -= 1
 
-        if "ip_address" in result:
+        if "ip_address" in result and "hostname" in result:
             if len(result["ip_address"]) > 1:
                 # Unknown behaviour, so removing hostname information
-                if "hostname" in result:
-                    result.pop("hostname")
+                result.pop("hostname")
             elif result["hostname"] in result["ip_address"]:
                 result.pop("hostname")
 

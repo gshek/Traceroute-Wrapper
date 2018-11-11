@@ -99,6 +99,7 @@ def graph_bar_chart(data, hostname=None):
 
         max_hops = 0
         max_average = 0
+        min_average = 0
         hop_averages = []
         for host in hostnames:
             hops = []
@@ -113,8 +114,10 @@ def graph_bar_chart(data, hostname=None):
                 if hop:
                     hop_averages[-1].append(round(sum(hop) / len(hop), 1))
                 else:
-                    hop_averages[-1].append(-1.0)
+                    hop_averages[-1].append(-5.0)
                 max_average = max(max_average, hop_averages[-1][-1])
+                if hop_averages[-1][-1] != -5:
+                    min_average = min(min_average, hop_averages[-1][-1])
             max_hops = max(max_hops, len(hops))
 
         for i in range(len(hop_averages)):
@@ -124,20 +127,32 @@ def graph_bar_chart(data, hostname=None):
         fig, ax = plt.subplots()
 
         # Colourmap
-        cmap = plt.get_cmap("inferno")
+        cmap = plt.get_cmap("inferno_r")
         cmap.set_bad(color="lightblue")
 
         # Heatmap
         data = np.array(hop_averages)
-        np.ma.masked_equal(data, -10)
-        im = ax.imshow(np.ma.masked_equal(data, -10), cmap=cmap)
+
+        change_miss_f = lambda x: int(max_average) + 6 if x == -5 else x
+        change_miss_v = np.vectorize(change_miss_f)
+        data = change_miss_v(data)
+
+        val_f = lambda x: min(x, plt.Locator.MAXTICKS - 5)
+        val_v = np.vectorize(val_f)
+        im = ax.imshow(np.ma.masked_equal(val_v(data), val_f(-10)), cmap=cmap)
+
+        if min_average + 1 < max_average:
+            min_average += 1
 
         # Colourbar
-        if max_average < plt.Locator.MAXTICKS:
-            cbar = ax.figure.colorbar(im, ax=ax,
-                    ticks=list(range(round(max_average))))
-            cbar.ax.set_ylabel("Average hop time (ms)", rotation=-90,
-                    va="bottom")
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.set_ticks([int(max_average) + 6, val_f(max_average),
+                val_f(min_average)])
+        cbar.set_ticklabels(["No data", ">=" + str(val_f(max_average)),
+                min_average])
+
+        cbar.ax.set_ylabel("Average hop time (ms)", rotation=-90,
+                va="bottom")
 
         ax.set_xticks(np.arange(max_hops))
         ax.set_yticks(np.arange(len(hostnames)))
