@@ -4,6 +4,7 @@ import argparse
 import json
 import statistics
 
+import graphviz
 import matplotlib.pyplot as plt
 import numpy as np
 import prettytable
@@ -60,6 +61,8 @@ def graph_table(data, hostname=None):
                         name = hop["ip_address"]
                         if "hostname" in hop:
                             name += " (" + hop["hostname"] + ")"
+                            if hop["ip_address"] in hops_hosts[i]:
+                                hops_hosts[i].remove(hop["ip_address"])
                         hops_hosts[i].add(name)
                     hops[i] += hop["results"]
 
@@ -126,9 +129,11 @@ def graph_bar_chart(data, hostname=None):
         im = ax.imshow(np.ma.masked_equal(data, -10), cmap=cmap)
 
         # Colourbar
-        cbar = ax.figure.colorbar(im, ax=ax,
-                ticks=list(range(round(max_average))))
-        cbar.ax.set_ylabel("Average hop time (ms)", rotation=-90, va="bottom")
+        if max_average < plt.Locator.MAXTICKS:
+            cbar = ax.figure.colorbar(im, ax=ax,
+                    ticks=list(range(round(max_average))))
+            cbar.ax.set_ylabel("Average hop time (ms)", rotation=-90,
+                    va="bottom")
 
         ax.set_xticks(np.arange(max_hops))
         ax.set_yticks(np.arange(len(hostnames)))
@@ -157,7 +162,7 @@ def graph_bar_chart(data, hostname=None):
             return
         hops_averages = [round(sum(hs) / len(hs), 2)\
                 if hs else 0 for hs in hops]
-        hosts = [", ".join(host) for host in hops_hosts]
+        hosts = [", ".join(host) if host else "?" for host in hops_hosts]
 
         fig, ax = plt.subplots()
 
@@ -175,10 +180,37 @@ def graph_bar_chart(data, hostname=None):
     plt.show()
 
 def graph_map(data, hostname=None):
-    """TODO
+    """Displays a grpah visualisation of data
+
+    Args:
+        hostname (str): hostname to output data on, if None, summary of all
+                data is printed
     """
-    # TODO
-    pass
+    if hostname is None:
+        hostnames = list(data.keys())
+        hostnames.sort()
+    else:
+        hostnames = [hostname]
+
+    graph = graphviz.Digraph(comment="Traceroute Information", filename="output.gv")
+    graph.node_attr.update(color="lightblue2", style="filled")
+
+    edges = set()
+    temp_count = 1
+    for host in hostnames:
+        for entry in data[host]:
+            if type(entry["data"]) is list:
+                if "ip_address" not in entry["data"][0]:
+                    entry["data"][0]["ip_address"] = f"Unknown {temp_count}"
+                    temp_count += 1
+                for i in range(1, len(entry["data"])):
+                    if "ip_address" not in entry["data"][i]:
+                        entry["data"][i]["ip_address"] = f"Unknown {temp_count}"
+                        temp_count += 1
+                    graph.edge(entry["data"][i-1]["ip_address"], entry["data"][i]["ip_address"])
+
+    graph.view()
+
 
 def show_stats(data, hostname=None):
     """Prints the stats related to data

@@ -144,7 +144,6 @@ class TracerouteResult:
             if i > 0 and words[i] != "*":
                 result["results"].append(float(words[i].replace("ms", "")))
 
-        print("DEBUG", result)
         self._result.append(result)
 
     def to_json(self):
