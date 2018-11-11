@@ -4,6 +4,8 @@ import argparse
 import json
 import statistics
 
+import matplotlib.pyplot as plt
+import numpy as np
 import prettytable
 
 def graph_table(data, hostname=None):
@@ -33,20 +35,16 @@ def graph_table(data, hostname=None):
                 best = str(round(min(hops), 2))
                 worst = str(round(max(hops), 2))
                 stdev = str(round(statistics.stdev(hops), 2))
+                table.add_row([host, len(hops), average, best, worst, stdev])
             else:
-                average = "-"
-                best = "-"
-                worst = "-"
-                stdev = "-"
-
-            table.add_row([host, len(hops), average, best, worst, stdev])
+                table.add_row([host, len(hops)] + ["-"] * 4)
 
     else:
-        table = prettytable.PrettyTable(["", "Hostname", "Rcvd",
+        table = prettytable.PrettyTable(["", "Host", "Rcvd",
                 "Average (ms)", "Best (ms)", "Worst (ms)", "StDev (ms)"],
                 hrules=prettytable.ALL)
         table.align[""] = "l"
-        table.align["Hostname"] = "l"
+        table.align["Host"] = "l"
 
         max_hops = 0
         for entry in data[hostname]:
@@ -58,13 +56,10 @@ def graph_table(data, hostname=None):
         for entry in data[hostname]:
             if type(entry["data"]) is list:
                 for i, hop in enumerate(entry["data"]):
-                    name = ""
                     if "ip_address" in hop:
                         name = hop["ip_address"]
-                    if "hostname" in hop:
-                        name += " (" + hop["hostname"] + ")"
-                    
-                    if name != "":
+                        if "hostname" in hop:
+                            name += " (" + hop["hostname"] + ")"
                         hops_hosts[i].add(name)
                     hops[i] += hop["results"]
 
@@ -85,18 +80,101 @@ def graph_table(data, hostname=None):
     print(table)
 
 def graph_bar_chart(data, hostname=None):
-    """TODO
+    """Displays a bar chart of the data
+
+    Args:
+        hostname (str): hostname to output data on, if None, summary of all
+                data is printed
     """
-    # TODO
-    pass
+    if hostname is None:
+        hostnames = list(data.keys())
+        hostnames.sort()
+
+        max_hops = 0
+        max_average = 0
+        hop_averages = []
+        for host in hostnames:
+            hops = []
+            for entry in data[host]:
+                if type(entry["data"]) is list:
+                    for i in range(len(entry["data"])):
+                        if len(hops) == i:
+                            hops.append([])
+                        hops[i] += entry["data"][i]["results"]
+            hop_averages.append([])
+            for hop in hops:
+                if hop:
+                    hop_averages[-1].append(round(sum(hop) / len(hop), 1))
+                else:
+                    hop_averages[-1].append(-1.0)
+                max_average = max(max_average, hop_averages[-1][-1])
+            max_hops = max(max_hops, len(hops))
+
+        for i in range(len(hop_averages)):
+            while len(hop_averages[i]) < max_hops:
+                hop_averages[i].append(-10.0)
+
+        fig, ax = plt.subplots()
+
+        # Colourmap
+        cmap = plt.get_cmap("inferno")
+        cmap.set_bad(color="white")
+
+        # Heatmap
+        data = np.array(hop_averages)
+        np.ma.masked_equal(data, -10)
+        im = ax.imshow(np.ma.masked_equal(data, -10), cmap=cmap)
+
+        # Colourbar
+        cbar = ax.figure.colorbar(im, ax=ax,
+                ticks=list(range(round(max_average))))
+        cbar.ax.set_ylabel("Average hop time (ms)", rotation=-90, va="bottom")
+
+        ax.set_xticks(np.arange(max_hops))
+        ax.set_yticks(np.arange(len(hostnames)))
+
+        ax.set_xticklabels(list(range(1, max_hops+1)))
+        ax.set_yticklabels(hostnames)
+
+        ax.set_title("Traceroute Information")
+
+    else:
+        hops_hosts = []
+        hops = []
+        for entry in data[hostname]:
+            if type(entry["data"]) is list:
+                for i in range(len(entry["data"])):
+                    if len(hops) == i:
+                       hops.append([])
+                       hops_hosts.append(set())
+
+                    if "ip_address" in entry["data"][i]:
+                        name = entry["data"][i]["ip_address"]
+                        hops_hosts[i].add(name)
+                    hops[i] += entry["data"][i]["results"]
+        if not hops:
+            print("No data")
+            return
+        hops_averages = [round(sum(hs) / len(hs), 2)\
+                if hs else 0 for hs in hops]
+        hosts = [", ".join(host) for host in hops_hosts]
+
+        fig, ax = plt.subplots()
+
+        num_hops = len(hops)
+
+        ax.barh(np.arange(num_hops), np.array(hops_averages), align="center")
+        ax.set_yticks(np.arange(num_hops))
+        ax.set_yticklabels(hosts)
+
+        ax.invert_yaxis()  # labels read top-to-bottom
+        ax.set_xlabel("Average Time (ms)")
+        ax.set_title("Traceroute Information to {}".format(hostname))
+
+    fig.tight_layout()
+    plt.show()
 
 def graph_map(data, hostname=None):
-    """TODO
-    """
-    # TODO
-    pass
-
-def graph_cool_visualisation(data, hostname=None):
     """TODO
     """
     # TODO
