@@ -310,7 +310,7 @@ def graph_map(data, hostname=None):
     edges = {}
     ip_to_hosts = {}
     temp_count = 1
-    for hos in hostnames:
+    for host in hostnames:
         for entry in data.get_entries(host):
             if "ip_address" not in entry["data"][0]:
                 entry["data"][0]["ip_address"] = {f"??? ({temp_count})"}
