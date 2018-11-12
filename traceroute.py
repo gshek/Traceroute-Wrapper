@@ -124,7 +124,7 @@ class TracerouteResult:
         words = [word.strip() for word in line.split(" ") if word.strip()]
         expected_tries = self._number_of_tries
 
-        # Though about using regexes, but though this would be more readable
+        # Thought about using regexes, but though this would be more readable
 
         def is_ipv4(word):
             allowed = {str(i) for i in range(10)}
