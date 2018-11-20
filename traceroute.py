@@ -83,7 +83,9 @@ def parse_line(version, line, expected_tries):
 
     if "ip_address" in result and "hostname" in result:
         if len(result["ip_address"]) > 1:
-            # Unknown behaviour, so removing hostname information
+            # Removing hostname information - unfortunately, a change in the
+            # stored json format and a refactor of view-results is required to
+            # maintain all information
             result.pop("hostname")
         elif result["hostname"] in result["ip_address"]:
             result.pop("hostname")
