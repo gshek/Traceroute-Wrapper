@@ -6,7 +6,7 @@
 * Python packages in **requirements.txt**
 * Graphviz
 
-## Traceroute Version
+## Supported Traceroute Version
 ```
 traceroute (GNU inetutils) 1.9.4
 Copyright (C) 2015 Free Software Foundation, Inc.
@@ -15,6 +15,11 @@ This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 
 Written by Elian Gidoni.
+```
+
+```
+Modern traceroute for Linux, version 2.1.0
+Copyright (c) 2016  Dmitry Butskoy,   License: GPL v2 or any later
 ```
 
 ## Usage
